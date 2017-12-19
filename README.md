@@ -19,18 +19,18 @@ USAGE:
    s3hash-go.exe [global options] command [command options] [arguments...]
 
 VERSION:
-   0.1.0
+   0.1.1
 
 COMMANDS:
-     md5, m         compute hash md5
-     sha1, s        compute hash sha1
-     sha224, s      compute hash sha224
-     sha256, s      compute hash sha256
-     sha384, s      compute hash sha384
-     sha512, s      compute hash sha512
-     sha512_224, s  compute hash sha512_224
-     sha512_256, s  compute hash sha512_256
-     help, h        Shows a list of commands or help for one command
+     md5         compute hash md5
+     sha1        compute hash sha1
+     sha224      compute hash sha224
+     sha256      compute hash sha256
+     sha384      compute hash sha384
+     sha512      compute hash sha512
+     sha512_224  compute hash sha512_224
+     sha512_256  compute hash sha512_256
+     help, h     Shows a list of commands or help for one command
 
 GLOBAL OPTIONS:
    --debug        enable debugging

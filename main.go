@@ -39,7 +39,7 @@ func main() {
 	app := cli.NewApp()
 	app.Name = "compute hash"
 	app.Usage = "usage compute hash"
-	app.Version = "0.1.0"
+	app.Version = "0.1.1"
 	app.Flags = []cli.Flag{
 		cli.BoolFlag{
 			Name:        "debug",
@@ -54,10 +54,10 @@ func main() {
 
 	app.Commands = []cli.Command{
 		{
-			Name:    "md5",
-			Aliases: []string{"m"},
-			Usage:   "compute hash md5",
-			Action:  cmdMd5,
+			Name: "md5",
+			//Aliases: []string{"md5"},
+			Usage:  "compute hash md5",
+			Action: cmdMd5,
 			Flags: []cli.Flag{
 				cli.StringFlag{
 					Name:        "input",
@@ -72,10 +72,10 @@ func main() {
 			},
 		},
 		{
-			Name:    "sha1",
-			Aliases: []string{"s"},
-			Usage:   "compute hash sha1",
-			Action:  cmdSha1,
+			Name: "sha1",
+			//Aliases: []string{"s"},
+			Usage:  "compute hash sha1",
+			Action: cmdSha1,
 			Flags: []cli.Flag{
 				cli.StringFlag{
 					Name:        "input",
@@ -90,10 +90,10 @@ func main() {
 			},
 		},
 		{
-			Name:    "sha224",
-			Aliases: []string{"s"},
-			Usage:   "compute hash sha224",
-			Action:  cmdSha224,
+			Name: "sha224",
+			//Aliases: []string{"s"},
+			Usage:  "compute hash sha224",
+			Action: cmdSha224,
 			Flags: []cli.Flag{
 				cli.StringFlag{
 					Name:        "input",
@@ -108,10 +108,10 @@ func main() {
 			},
 		},
 		{
-			Name:    "sha256",
-			Aliases: []string{"s"},
-			Usage:   "compute hash sha256",
-			Action:  cmdSha256,
+			Name: "sha256",
+			//Aliases: []string{"s"},
+			Usage:  "compute hash sha256",
+			Action: cmdSha256,
 			Flags: []cli.Flag{
 				cli.StringFlag{
 					Name:        "input",
@@ -126,10 +126,10 @@ func main() {
 			},
 		},
 		{
-			Name:    "sha384",
-			Aliases: []string{"s"},
-			Usage:   "compute hash sha384",
-			Action:  cmdSha384,
+			Name: "sha384",
+			//Aliases: []string{"s"},
+			Usage:  "compute hash sha384",
+			Action: cmdSha384,
 			Flags: []cli.Flag{
 				cli.StringFlag{
 					Name:        "input",
@@ -144,10 +144,10 @@ func main() {
 			},
 		},
 		{
-			Name:    "sha512",
-			Aliases: []string{"s"},
-			Usage:   "compute hash sha512",
-			Action:  cmdSha512,
+			Name: "sha512",
+			//Aliases: []string{"s"},
+			Usage:  "compute hash sha512",
+			Action: cmdSha512,
 			Flags: []cli.Flag{
 				cli.StringFlag{
 					Name:        "input",
@@ -162,10 +162,10 @@ func main() {
 			},
 		},
 		{
-			Name:    "sha512_224",
-			Aliases: []string{"s"},
-			Usage:   "compute hash sha512_224",
-			Action:  cmdSha512_224,
+			Name: "sha512_224",
+			//Aliases: []string{"s"},
+			Usage:  "compute hash sha512_224",
+			Action: cmdSha512_224,
 			Flags: []cli.Flag{
 				cli.StringFlag{
 					Name:        "input",
@@ -180,10 +180,10 @@ func main() {
 			},
 		},
 		{
-			Name:    "sha512_256",
-			Aliases: []string{"s"},
-			Usage:   "compute hash sha512_256",
-			Action:  cmdSha512_256,
+			Name: "sha512_256",
+			//Aliases: []string{"s"},
+			Usage:  "compute hash sha512_256",
+			Action: cmdSha512_256,
 			Flags: []cli.Flag{
 				cli.StringFlag{
 					Name:        "input",
@@ -316,13 +316,12 @@ func cmdSha512_256(c *cli.Context) {
 }
 
 func start(h crypto.Hash, crypto hash.Hash, path string) ([]byte, error) {
-	var factory iodriver.DriverFactory
-	factory = &s3driver.S3Driver{
-		Profile: "default",
-		Debug:   false,
-	}
+	driver := s3driver.NewDriver(func(d *s3driver.S3Driver) {
+		//d.Profile = "default"
+		//d.Region = "ap-northeast-1"
+		//d.Debug = true
+	})
 
-	driver := factory.NewDriver()
 	start := time.Now()
 	buf, err := compute(driver, crypto, path)
 	if err != nil {
@@ -349,7 +348,7 @@ func start(h crypto.Hash, crypto hash.Hash, path string) ([]byte, error) {
 	return data, nil
 }
 
-func compute(driver iodriver.Driver, crypto hash.Hash, path string) ([]byte, error) {
+func compute(driver driver.Driver, crypto hash.Hash, path string) ([]byte, error) {
 	file, err := driver.Open(path)
 	if err != nil {
 		return nil, err

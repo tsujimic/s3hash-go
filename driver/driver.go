@@ -1,11 +1,6 @@
-package iodriver
+package driver
 
 import "io"
-
-// DriverFactory ...
-type DriverFactory interface {
-	NewDriver() Driver
-}
 
 // Driver ...
 type Driver interface {

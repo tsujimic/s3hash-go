@@ -55,32 +55,37 @@ type Downloader struct {
 }
 
 // NewDownloader ...
-func NewDownloader(svc s3iface.S3API, bucket, key string) (*Downloader, error) {
-	partSize := DefaultDownloadPartSize
-	concurrency := DefaultDownloadConcurrency
-	timeout := DefaultReadTimeout
-	ctx, cancel := context.WithCancel(aws.BackgroundContext())
-	//ctx, cancel := context.WithTimeout(aws.BackgroundContext(), timeout)
-	channel := make(chan int64, concurrency)
+func NewDownloader(svc s3iface.S3API, bucket, key string, options ...func(*Downloader)) (*Downloader, error) {
+	return NewDownloaderWithContext(aws.BackgroundContext(), svc, bucket, key, options...)
+}
+
+// NewDownloaderWithContext ...
+func NewDownloaderWithContext(ctx context.Context, svc s3iface.S3API, bucket, key string, options ...func(*Downloader)) (*Downloader, error) {
+	ctx, cancel := context.WithCancel(ctx)
 	d := &Downloader{
 		ctx:                ctx,
 		cancel:             cancel,
 		S3:                 svc,
 		Bucket:             bucket,
 		Key:                key,
-		PartSize:           int64(partSize),
-		Concurrency:        concurrency,
-		Timeout:            timeout,
+		PartSize:           DefaultDownloadPartSize,
+		Concurrency:        DefaultDownloadConcurrency,
+		Timeout:            DefaultReadTimeout,
 		id:                 0,
 		readBytes:          0,
 		partBodyMaxRetries: 3,
-		ch:                 channel,
-		readBuf:            make([]byte, partSize),
+		readBuf:            make([]byte, DefaultDownloadPartSize),
 		offset:             0,
 		length:             0,
 		queue:              make(chan struct{}),
 		done:               make(chan struct{}),
 	}
+
+	for _, option := range options {
+		option(d)
+	}
+
+	d.ch = make(chan int64, d.Concurrency)
 
 	output, err := svc.HeadObjectWithContext(ctx, &s3.HeadObjectInput{
 		Bucket: aws.String(bucket),
@@ -93,13 +98,13 @@ func NewDownloader(svc s3iface.S3API, bucket, key string) (*Downloader, error) {
 	contentLength := aws.Int64Value(output.ContentLength)
 	d.totalBytes = contentLength
 
-	for i := 0; i < concurrency; i++ {
+	for i := 0; i < d.Concurrency; i++ {
 		d.wg.Add(1)
-		go d.downloadPart(channel)
+		go d.downloadPart(d.ch)
 	}
 
 	d.wg.Add(1)
-	go d.queuingChunks(contentLength / int64(partSize))
+	go d.queuingChunks(contentLength / d.PartSize)
 
 	return d, nil
 }

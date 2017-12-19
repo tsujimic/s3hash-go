@@ -1,6 +1,7 @@
 package s3driver
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -12,6 +13,8 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/credentials/ec2rolecreds"
+	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 )
@@ -21,25 +24,42 @@ const DefaultTimeout time.Duration = 30 * time.Second
 
 // S3Driver ...
 type S3Driver struct {
+	ctx             context.Context
 	MaxRetries      int
 	Profile         string
 	AccessKeyID     string
 	SecretAccessKey string
 	SessionToken    string
 	Region          string
+	Concurrency     int
+	PartSize        int64
 	Debug           bool
 	Timeout         time.Duration
 }
 
 // NewDriver ...
-func (driver *S3Driver) NewDriver() iodriver.Driver {
-	return &S3Driver{
-		MaxRetries: 3,
-		Profile:    driver.Profile,
-		Region:     driver.Region,
-		Debug:      driver.Debug,
-		Timeout:    DefaultTimeout,
+func NewDriver(options ...func(*S3Driver)) driver.Driver {
+	return NewDriverWithContext(aws.BackgroundContext(), options...)
+}
+
+// NewDriverWithContext ...
+func NewDriverWithContext(ctx context.Context, options ...func(*S3Driver)) driver.Driver {
+	s3d := &S3Driver{
+		ctx:         ctx,
+		MaxRetries:  3,
+		Profile:     "default",
+		Region:      "ap-northeast-1", // ap-northeast-1 us-east-1
+		Concurrency: 3,
+		PartSize:    1024 * 1024 * 5,
+		Debug:       false,
+		Timeout:     60 * time.Second,
 	}
+
+	for _, option := range options {
+		option(s3d)
+	}
+
+	return s3d
 }
 
 // Open ...
@@ -144,20 +164,25 @@ func (driver *S3Driver) newClient() (*s3.S3, error) {
 	}
 
 	if driver.AccessKeyID == "" {
-		sess, err := session.NewSessionWithOptions(session.Options{
-			Profile:           driver.Profile,
-			SharedConfigState: session.SharedConfigEnable,
+		creds := credentials.NewChainCredentials([]credentials.Provider{
+			&credentials.EnvProvider{},
+			&credentials.SharedCredentialsProvider{
+				Profile: driver.Profile,
+			},
+			&ec2rolecreds.EC2RoleProvider{
+				Client: ec2metadata.New(session.New(&aws.Config{
+					HTTPClient: &http.Client{Timeout: driver.Timeout},
+				})),
+			},
 		})
-		if err != nil {
-			return nil, err
-		}
 
 		cfg := aws.NewConfig().
+			WithCredentials(creds).
 			WithLogLevel(level).
+			WithRegion(driver.Region).
 			WithMaxRetries(driver.MaxRetries).
 			WithHTTPClient(&http.Client{Timeout: driver.Timeout})
-
-		return s3.New(sess, cfg), nil
+		return s3.New(session.New(cfg)), nil
 	}
 
 	cfg := aws.NewConfig().
@@ -166,7 +191,6 @@ func (driver *S3Driver) newClient() (*s3.S3, error) {
 		WithRegion(driver.Region).
 		WithMaxRetries(driver.MaxRetries).
 		WithHTTPClient(&http.Client{Timeout: driver.Timeout})
-
 	return s3.New(session.New(), cfg), nil
 }
 
@@ -181,15 +205,23 @@ func (driver *S3Driver) newClientWithBucket(bucket string) (*s3.S3, error) {
 	})
 	req.Handlers.Unmarshal.PushBackNamed(s3.NormalizeBucketLocationHandler)
 	err = req.Send()
-
-	// result, err := svc.GetBucketLocation(&s3.GetBucketLocationInput{Bucket: aws.String(bucket)})
 	if err != nil {
 		return nil, err
 	}
 
 	var creds *credentials.Credentials
 	if driver.AccessKeyID == "" {
-		creds = credentials.NewSharedCredentials("", driver.Profile)
+		creds = credentials.NewChainCredentials([]credentials.Provider{
+			&credentials.EnvProvider{},
+			&credentials.SharedCredentialsProvider{
+				Profile: driver.Profile,
+			},
+			&ec2rolecreds.EC2RoleProvider{
+				Client: ec2metadata.New(session.New(&aws.Config{
+					HTTPClient: &http.Client{Timeout: driver.Timeout},
+				})),
+			},
+		})
 	} else {
 		creds = credentials.NewStaticCredentials(driver.AccessKeyID, driver.SecretAccessKey, driver.SessionToken)
 	}
@@ -202,7 +234,6 @@ func (driver *S3Driver) newClientWithBucket(bucket string) (*s3.S3, error) {
 	cfg := aws.NewConfig().
 		WithCredentials(creds).
 		WithLogLevel(level).
-		//WithRegion(normalizeRegionValue(result.LocationConstraint)).
 		WithRegion(aws.StringValue(result.LocationConstraint)).
 		WithMaxRetries(driver.MaxRetries).
 		WithHTTPClient(&http.Client{Timeout: driver.Timeout})
@@ -216,7 +247,6 @@ func (driver *S3Driver) newClientWithBucket(bucket string) (*s3.S3, error) {
 	cfg = aws.NewConfig().
 		WithCredentials(creds).
 		WithLogLevel(level).
-		//WithRegion(normalizeRegionValue(result.LocationConstraint)).
 		WithRegion(aws.StringValue(result.LocationConstraint)).
 		WithMaxRetries(driver.MaxRetries).
 		WithHTTPClient(&http.Client{Timeout: driver.Timeout}).
