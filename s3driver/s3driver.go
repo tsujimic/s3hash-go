@@ -157,14 +157,10 @@ func normalizeError(err error) error {
 	return errors.New(strings.Replace(s, "\n", "", -1))
 }
 
-func (driver *S3Driver) newClient() (*s3.S3, error) {
-	level := aws.LogOff
-	if driver.Debug {
-		level = aws.LogDebug
-	}
-
+func (driver *S3Driver) getCredentials() *credentials.Credentials {
+	var creds *credentials.Credentials
 	if driver.AccessKeyID == "" {
-		creds := credentials.NewChainCredentials([]credentials.Provider{
+		creds = credentials.NewChainCredentials([]credentials.Provider{
 			&credentials.EnvProvider{},
 			&credentials.SharedCredentialsProvider{
 				Profile: driver.Profile,
@@ -175,18 +171,22 @@ func (driver *S3Driver) newClient() (*s3.S3, error) {
 				})),
 			},
 		})
-
-		cfg := aws.NewConfig().
-			WithCredentials(creds).
-			WithLogLevel(level).
-			WithRegion(driver.Region).
-			WithMaxRetries(driver.MaxRetries).
-			WithHTTPClient(&http.Client{Timeout: driver.Timeout})
-		return s3.New(session.New(cfg)), nil
+	} else {
+		creds = credentials.NewStaticCredentials(driver.AccessKeyID, driver.SecretAccessKey, driver.SessionToken)
 	}
 
+	return creds
+}
+
+func (driver *S3Driver) newClient() (*s3.S3, error) {
+	level := aws.LogOff
+	if driver.Debug {
+		level = aws.LogDebug
+	}
+
+	creds := driver.getCredentials()
 	cfg := aws.NewConfig().
-		WithCredentials(credentials.NewStaticCredentials(driver.AccessKeyID, driver.SecretAccessKey, driver.SessionToken)).
+		WithCredentials(creds).
 		WithLogLevel(level).
 		WithRegion(driver.Region).
 		WithMaxRetries(driver.MaxRetries).
@@ -209,35 +209,18 @@ func (driver *S3Driver) newClientWithBucket(bucket string) (*s3.S3, error) {
 		return nil, err
 	}
 
-	var creds *credentials.Credentials
-	if driver.AccessKeyID == "" {
-		creds = credentials.NewChainCredentials([]credentials.Provider{
-			&credentials.EnvProvider{},
-			&credentials.SharedCredentialsProvider{
-				Profile: driver.Profile,
-			},
-			&ec2rolecreds.EC2RoleProvider{
-				Client: ec2metadata.New(session.New(&aws.Config{
-					HTTPClient: &http.Client{Timeout: driver.Timeout},
-				})),
-			},
-		})
-	} else {
-		creds = credentials.NewStaticCredentials(driver.AccessKeyID, driver.SecretAccessKey, driver.SessionToken)
-	}
-
 	level := aws.LogOff
 	if driver.Debug {
 		level = aws.LogDebug
 	}
 
+	creds := driver.getCredentials()
 	cfg := aws.NewConfig().
 		WithCredentials(creds).
 		WithLogLevel(level).
 		WithRegion(aws.StringValue(result.LocationConstraint)).
 		WithMaxRetries(driver.MaxRetries).
 		WithHTTPClient(&http.Client{Timeout: driver.Timeout})
-
 	svc = s3.New(session.New(), cfg)
 	acc, err := svc.GetBucketAccelerateConfiguration(&s3.GetBucketAccelerateConfigurationInput{Bucket: aws.String(bucket)})
 	if err != nil {
@@ -251,6 +234,5 @@ func (driver *S3Driver) newClientWithBucket(bucket string) (*s3.S3, error) {
 		WithMaxRetries(driver.MaxRetries).
 		WithHTTPClient(&http.Client{Timeout: driver.Timeout}).
 		WithS3UseAccelerate(aws.StringValue(acc.Status) == s3.BucketAccelerateStatusEnabled)
-
 	return s3.New(session.New(), cfg), nil
 }
