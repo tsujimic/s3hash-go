@@ -19,7 +19,7 @@ USAGE:
    s3hash-go.exe [global options] command [command options] [arguments...]
 
 VERSION:
-   0.1.1
+   0.1.2
 
 COMMANDS:
      md5         compute hash md5
