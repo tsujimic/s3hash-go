@@ -388,7 +388,7 @@ func (c *CodeBuild) CreateWebhookRequest(input *CreateWebhookInput) (req *reques
 // AWS CodePipeline. Because billing is on a per-build basis, you will be billed
 // for both builds. Therefore, if you are using AWS CodePipeline, we recommend
 // that you disable webhooks in CodeBuild. In the AWS CodeBuild console, clear
-// the Webhook box. For more information, see step 9 in Change a Build Project’s
+// the Webhook box. For more information, see step 9 in Change a Build Project's
 // Settings (http://docs.aws.amazon.com/codebuild/latest/userguide/change-project.html#change-project-console).
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
@@ -2307,6 +2307,9 @@ type EnvironmentImage struct {
 
 	// The name of the Docker image.
 	Name *string `locationName:"name" type:"string"`
+
+	// A list of environment image versions.
+	Versions []*string `locationName:"versions" type:"list"`
 }
 
 // String returns the string representation
@@ -2328,6 +2331,12 @@ func (s *EnvironmentImage) SetDescription(v string) *EnvironmentImage {
 // SetName sets the Name field's value.
 func (s *EnvironmentImage) SetName(v string) *EnvironmentImage {
 	s.Name = &v
+	return s
+}
+
+// SetVersions sets the Versions field's value.
+func (s *EnvironmentImage) SetVersions(v []*string) *EnvironmentImage {
+	s.Versions = v
 	return s
 }
 
@@ -3044,10 +3053,7 @@ type Project struct {
 	// The default is 60 minutes.
 	TimeoutInMinutes *int64 `locationName:"timeoutInMinutes" min:"5" type:"integer"`
 
-	// If your AWS CodeBuild project accesses resources in an Amazon VPC, you provide
-	// this parameter that identifies the VPC ID and the list of security group
-	// IDs and subnet IDs. The security groups and subnets must belong to the same
-	// VPC. You must provide at least one security group and one subnet ID.
+	// Information about the VPC configuration that AWS CodeBuild will access.
 	VpcConfig *VpcConfig `locationName:"vpcConfig" type:"structure"`
 
 	// Information about a webhook in GitHub that connects repository events to
@@ -3424,6 +3430,9 @@ func (s *ProjectCache) SetType(v string) *ProjectCache {
 type ProjectEnvironment struct {
 	_ struct{} `type:"structure"`
 
+	// The certificate to use with this build project.
+	Certificate *string `locationName:"certificate" type:"string"`
+
 	// Information about the compute resources the build project will use. Available
 	// values include:
 	//
@@ -3510,6 +3519,12 @@ func (s *ProjectEnvironment) Validate() error {
 	return nil
 }
 
+// SetCertificate sets the Certificate field's value.
+func (s *ProjectEnvironment) SetCertificate(v string) *ProjectEnvironment {
+	s.Certificate = &v
+	return s
+}
+
 // SetComputeType sets the ComputeType field's value.
 func (s *ProjectEnvironment) SetComputeType(v string) *ProjectEnvironment {
 	s.ComputeType = &v
@@ -3558,6 +3573,13 @@ type ProjectSource struct {
 	// If this value is not specified, a build spec must be included along with
 	// the source code to be built.
 	Buildspec *string `locationName:"buildspec" type:"string"`
+
+	// Information about the git clone depth for the build project.
+	GitCloneDepth *int64 `locationName:"gitCloneDepth" type:"integer"`
+
+	// Enable this flag to ignore SSL warnings while connecting to the project source
+	// code.
+	InsecureSsl *bool `locationName:"insecureSsl" type:"boolean"`
 
 	// Information about the location of the source code to be built. Valid values
 	// include:
@@ -3659,6 +3681,18 @@ func (s *ProjectSource) SetBuildspec(v string) *ProjectSource {
 	return s
 }
 
+// SetGitCloneDepth sets the GitCloneDepth field's value.
+func (s *ProjectSource) SetGitCloneDepth(v int64) *ProjectSource {
+	s.GitCloneDepth = &v
+	return s
+}
+
+// SetInsecureSsl sets the InsecureSsl field's value.
+func (s *ProjectSource) SetInsecureSsl(v bool) *ProjectSource {
+	s.InsecureSsl = &v
+	return s
+}
+
 // SetLocation sets the Location field's value.
 func (s *ProjectSource) SetLocation(v string) *ProjectSource {
 	s.Location = &v
@@ -3741,6 +3775,10 @@ type StartBuildInput struct {
 	// A set of environment variables that overrides, for this build only, the latest
 	// ones already defined in the build project.
 	EnvironmentVariablesOverride []*EnvironmentVariable `locationName:"environmentVariablesOverride" type:"list"`
+
+	// The user-defined depth of history, with a minimum value of 0, that overrides,
+	// for this build only, any previous depth of history defined in the build project.
+	GitCloneDepthOverride *int64 `locationName:"gitCloneDepthOverride" type:"integer"`
 
 	// The name of the build project to start running a build.
 	//
@@ -3832,6 +3870,12 @@ func (s *StartBuildInput) SetBuildspecOverride(v string) *StartBuildInput {
 // SetEnvironmentVariablesOverride sets the EnvironmentVariablesOverride field's value.
 func (s *StartBuildInput) SetEnvironmentVariablesOverride(v []*EnvironmentVariable) *StartBuildInput {
 	s.EnvironmentVariablesOverride = v
+	return s
+}
+
+// SetGitCloneDepthOverride sets the GitCloneDepthOverride field's value.
+func (s *StartBuildInput) SetGitCloneDepthOverride(v int64) *StartBuildInput {
+	s.GitCloneDepthOverride = &v
 	return s
 }
 
@@ -4220,10 +4264,7 @@ func (s *UpdateProjectOutput) SetProject(v *Project) *UpdateProjectOutput {
 	return s
 }
 
-// If your AWS CodeBuild project accesses resources in an Amazon VPC, you provide
-// this parameter that identifies the VPC ID and the list of security group
-// IDs and subnet IDs. The security groups and subnets must belong to the same
-// VPC. You must provide at least one security group and one subnet ID.
+// Information about the VPC configuration that AWS CodeBuild will access.
 // See also, https://docs.aws.amazon.com/goto/WebAPI/codebuild-2016-10-06/VpcConfig
 type VpcConfig struct {
 	_ struct{} `type:"structure"`
@@ -4285,6 +4326,14 @@ func (s *VpcConfig) SetVpcId(v string) *VpcConfig {
 type Webhook struct {
 	_ struct{} `type:"structure"`
 
+	// This is the server endpoint that will receive the webhook payload.
+	PayloadUrl *string `locationName:"payloadUrl" min:"1" type:"string"`
+
+	// Use this secret while creating a webhook in GitHub for Enterprise. The secret
+	// allows webhook requests sent by GitHub for Enterprise to be authenticated
+	// by AWS CodeBuild.
+	Secret *string `locationName:"secret" min:"1" type:"string"`
+
 	// The URL to the webhook.
 	Url *string `locationName:"url" min:"1" type:"string"`
 }
@@ -4297,6 +4346,18 @@ func (s Webhook) String() string {
 // GoString returns the string representation
 func (s Webhook) GoString() string {
 	return s.String()
+}
+
+// SetPayloadUrl sets the PayloadUrl field's value.
+func (s *Webhook) SetPayloadUrl(v string) *Webhook {
+	s.PayloadUrl = &v
+	return s
+}
+
+// SetSecret sets the Secret field's value.
+func (s *Webhook) SetSecret(v string) *Webhook {
+	s.Secret = &v
+	return s
 }
 
 // SetUrl sets the Url field's value.
@@ -4475,6 +4536,9 @@ const (
 
 	// SourceTypeBitbucket is a SourceType enum value
 	SourceTypeBitbucket = "BITBUCKET"
+
+	// SourceTypeGithubEnterprise is a SourceType enum value
+	SourceTypeGithubEnterprise = "GITHUB_ENTERPRISE"
 )
 
 const (

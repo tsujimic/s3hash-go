@@ -74,7 +74,6 @@ func NewDownloaderWithContext(ctx context.Context, svc s3iface.S3API, bucket, ke
 		id:                 0,
 		readBytes:          0,
 		partBodyMaxRetries: 3,
-		readBuf:            make([]byte, DefaultDownloadPartSize),
 		offset:             0,
 		length:             0,
 		queue:              make(chan struct{}),
@@ -86,6 +85,7 @@ func NewDownloaderWithContext(ctx context.Context, svc s3iface.S3API, bucket, ke
 	}
 
 	d.ch = make(chan int64, d.Concurrency)
+	d.readBuf = make([]byte, d.PartSize)
 
 	output, err := svc.HeadObjectWithContext(ctx, &s3.HeadObjectInput{
 		Bucket: aws.String(bucket),
